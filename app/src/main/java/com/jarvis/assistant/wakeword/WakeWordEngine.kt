@@ -56,7 +56,7 @@ class WakeWordEngine(private val context: Context) {
         return try {
             porcupine = Porcupine.Builder()
                 .setAccessKey(accessKey)
-                .setBuiltInKeyword(Porcupine.BuiltInKeyword.JARVIS)
+                .setKeyword(Porcupine.BuiltInKeyword.JARVIS)
                 .setSensitivities(floatArrayOf(0.7f))
                 .build(context)
 
