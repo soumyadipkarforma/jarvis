@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Jarvis Assistant</string>
+
+    <!-- Main UI -->
+    <string name="welcome_message">Hello, I\'m Jarvis. Say \"Jarvis\" to wake me up, or tap the microphone to start a conversation.</string>
+    <string name="listening">Listening…</string>
+    <string name="processing">Processing…</string>
+    <string name="speaking">Speaking…</string>
+    <string name="idle">Say \"Jarvis\" to activate</string>
+    <string name="mic_button_description">Tap to speak</string>
+    <string name="settings_button_description">Settings</string>
+
+    <!-- Notifications -->
+    <string name="notification_channel_id">jarvis_foreground</string>
+    <string name="notification_channel_name">Jarvis Assistant</string>
+    <string name="notification_title">Jarvis is listening</string>
+    <string name="notification_text">Waiting for wake word \"Jarvis\"…</string>
+
+    <!-- Service -->
+    <string name="service_start">Start Jarvis</string>
+    <string name="service_stop">Stop Jarvis</string>
+
+    <!-- Permissions -->
+    <string name="permission_mic_rationale">Jarvis needs microphone access to hear your voice commands.</string>
+    <string name="permission_notification_rationale">Jarvis needs notification permission to run in the background.</string>
+
+    <!-- Errors -->
+    <string name="error_mic_permission">Microphone permission is required for Jarvis to work.</string>
+    <string name="error_model_not_found">AI model not found. Please download the model first.</string>
+    <string name="error_stt_init">Failed to initialize speech recognition.</string>
+    <string name="error_tts_init">Failed to initialize text-to-speech engine.</string>
+    <string name="error_wakeword_init">Failed to initialize wake word detection.</string>
+    <string name="error_llm_init">Failed to initialize language model.</string>
+
+    <!-- Commands -->
+    <string name="command_app_not_found">Sorry, I couldn\'t find that app.</string>
+    <string name="command_app_opened">Opening %s</string>
+</resources>

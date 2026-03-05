@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Primary palette - Dark/Iron Man inspired -->
+    <color name="primary">#FF1A237E</color>
+    <color name="primary_dark">#FF0D1642</color>
+    <color name="primary_light">#FF3949AB</color>
+    <color name="accent">#FF00BCD4</color>
+    <color name="accent_light">#FF4DD0E1</color>
+
+    <!-- Background -->
+    <color name="background_dark">#FF0A0E1A</color>
+    <color name="background_surface">#FF121829</color>
+    <color name="background_card">#FF1A2035</color>
+
+    <!-- Text -->
+    <color name="text_primary">#FFFFFFFF</color>
+    <color name="text_secondary">#B3FFFFFF</color>
+    <color name="text_hint">#66FFFFFF</color>
+
+    <!-- Status -->
+    <color name="status_listening">#FF4CAF50</color>
+    <color name="status_processing">#FFFFC107</color>
+    <color name="status_speaking">#FF2196F3</color>
+    <color name="status_error">#FFF44336</color>
+    <color name="status_idle">#FF9E9E9E</color>
+
+    <!-- Chat bubbles -->
+    <color name="bubble_user">#FF1A237E</color>
+    <color name="bubble_jarvis">#FF1A2035</color>
+
+    <!-- Glow effect -->
+    <color name="glow_cyan">#6600BCD4</color>
+    <color name="white">#FFFFFFFF</color>
+    <color name="black">#FF000000</color>
+</resources>
