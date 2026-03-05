@@ -173,6 +173,24 @@ class MainActivity : AppCompatActivity() {
             binding.statusText.text = text
         }
 
+        viewModel.showDownloadPrompt.observe(this) { show ->
+            if (show) {
+                androidx.appcompat.app.AlertDialog.Builder(this)
+                    .setTitle("Download Required")
+                    .setMessage("Jarvis needs to download AI models (~1.8GB) to function offline. This may take some time.")
+                    .setPositiveButton("Download") { _, _ -> viewModel.startDownload() }
+                    .setNegativeButton("Later", null)
+                    .show()
+            }
+        }
+
+        viewModel.downloadProgress.observe(this) { progress ->
+            // Update a progress bar if available in layout
+            if (progress > 0) {
+                viewModel.setStatusText("Downloading... $progress%")
+            }
+        }
+
         viewModel.serviceRunning.observe(this) { running ->
             binding.serviceToggleButton.text = if (running) {
                 getString(R.string.service_stop)

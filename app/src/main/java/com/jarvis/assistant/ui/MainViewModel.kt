@@ -38,10 +38,18 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     val llmEngine = LlamaLLMEngine(application)
     val ttsEngine = CoquiTextToSpeech(application)
     val commandProcessor = CommandProcessor(application)
+    private val downloadManager = com.jarvis.assistant.util.ModelDownloadManager(application)
 
     // State
     private val _state = MutableLiveData(JarvisState.IDLE)
     val state: LiveData<JarvisState> = _state
+
+    // Download Progress
+    private val _downloadProgress = MutableLiveData<Int>(0)
+    val downloadProgress: LiveData<Int> = _downloadProgress
+
+    private val _showDownloadPrompt = MutableLiveData<Boolean>(false)
+    val showDownloadPrompt: LiveData<Boolean> = _showDownloadPrompt
 
     // Chat messages
     private val _messages = MutableLiveData<List<ChatMessage>>(emptyList())
@@ -63,41 +71,112 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         private set
 
     /**
-     * Initialize all AI engines.
+     * Initialize all AI engines. Checks for missing models and native libraries.
      */
     fun initializeEngines() {
         viewModelScope.launch {
-            _statusText.value = "Initializing engines..."
+            _statusText.value = "Checking for AI models..."
 
-            // Initialize STT
-            sttEngine.initialize(config.voskModelPath) { success ->
-                if (success) {
-                    Log.i(TAG, "STT initialized")
-                } else {
-                    Log.e(TAG, "STT initialization failed")
-                    _statusText.postValue("Warning: Speech recognition not available")
-                }
+            // Check if models are missing
+            val missingVosk = !downloadManager.isModelDownloaded(config.voskModelPath)
+            val missingLlama = !downloadManager.isModelDownloaded(config.llamaModelPath)
+            
+            // Check for native libraries
+            val abi = android.os.Build.SUPPORTED_ABIS.firstOrNull() ?: "arm64-v8a"
+            val missingLibs = !java.io.File(getApplication<Application>().filesDir, "libs/$abi/libllama-android.so").exists()
+            
+            if (missingVosk || missingLlama || missingLibs) {
+                _statusText.postValue("AI models and libraries need to be downloaded.")
+                _showDownloadPrompt.postValue(true)
+                return@launch
             }
 
-            // Initialize LLM
-            val llmReady = llmEngine.initialize(config.llamaModelPath, config.maxLLMTokens)
-            if (llmReady) {
-                Log.i(TAG, "LLM initialized")
-            } else {
-                Log.w(TAG, "LLM not available - will use command processor only")
-            }
-
-            // Initialize TTS
-            val ttsReady = ttsEngine.initialize(config.coquiModelPath)
-            if (ttsReady) {
-                Log.i(TAG, "TTS initialized")
-            } else {
-                Log.w(TAG, "TTS not available - will use text-only responses")
-            }
-
-            _statusText.postValue("Jarvis is ready. Say \"Jarvis\" or tap the mic.")
-            _state.postValue(JarvisState.IDLE)
+            actuallyInitialize()
         }
+    }
+
+    /**
+     * Start the download of required models and libraries.
+     */
+    fun startDownload() {
+        _showDownloadPrompt.value = false
+        _statusText.value = "Downloading AI models..."
+        
+        viewModelScope.launch {
+            try {
+                // Download Vosk
+                _statusText.postValue("Downloading Speech Engine (50MB)...")
+                val voskZip = downloadManager.downloadFile(
+                    com.jarvis.assistant.util.ModelDownloadManager.VOSK_MODEL_URL, 
+                    "vosk-model.zip"
+                ) { progress -> _downloadProgress.postValue(progress) }
+                
+                if (voskZip != null) {
+                    _statusText.postValue("Extracting Speech Engine...")
+                    downloadManager.unzipFile(voskZip, config.voskModelPath)
+                    voskZip.delete()
+                }
+
+                // Download Llama Model
+                _statusText.postValue("Downloading Brain Model (1.7GB)...")
+                downloadManager.downloadFile(
+                    com.jarvis.assistant.util.ModelDownloadManager.PHI2_MODEL_URL,
+                    config.llamaModelPath
+                ) { progress -> _downloadProgress.postValue(progress) }
+
+                // Download Native Libraries
+                _statusText.postValue("Downloading Native Components...")
+                val libsZip = downloadManager.downloadFile(
+                    com.jarvis.assistant.util.ModelDownloadManager.NATIVE_LIBS_URL,
+                    "native-libs.zip"
+                ) { progress -> _downloadProgress.postValue(progress) }
+                
+                if (libsZip != null) {
+                    _statusText.postValue("Installing Native Components...")
+                    downloadManager.unzipFile(libsZip, "libs")
+                    libsZip.delete()
+                }
+
+                _statusText.postValue("Download complete! Initializing...")
+                actuallyInitialize()
+            } catch (e: Exception) {
+                Log.e(TAG, "Download failed", e)
+                _statusText.postValue("Error: Download failed.")
+            }
+        }
+    }
+
+    private suspend fun actuallyInitialize() {
+        _statusText.postValue("Initializing engines...")
+
+        // Initialize STT
+        sttEngine.initialize(config.voskModelPath) { success ->
+            if (success) {
+                Log.i(TAG, "STT initialized")
+            } else {
+                Log.e(TAG, "STT initialization failed")
+                _statusText.postValue("Warning: Speech recognition not available")
+            }
+        }
+
+        // Initialize LLM
+        val llmReady = llmEngine.initialize(config.llamaModelPath, config.maxLLMTokens)
+        if (llmReady) {
+            Log.i(TAG, "LLM initialized")
+        } else {
+            Log.w(TAG, "LLM not available - will use command processor only")
+        }
+
+        // Initialize TTS
+        val ttsReady = ttsEngine.initialize(config.coquiModelPath)
+        if (ttsReady) {
+            Log.i(TAG, "TTS initialized")
+        } else {
+            Log.w(TAG, "TTS not available - will use text-only responses")
+        }
+
+        _statusText.postValue("Jarvis is ready. Say \"Jarvis\" or tap the mic.")
+        _state.postValue(JarvisState.IDLE)
     }
 
     /**

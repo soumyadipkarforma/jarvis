@@ -38,12 +38,29 @@ class CoquiTextToSpeech(private val context: Context) {
         private const val JARVIS_VOICE_PITCH = 0.85f
         private const val JARVIS_VOICE_SPEED = 0.9f
 
-        init {
+        private var isLibraryLoaded = false
+
+        private fun loadNativeLibrary(context: Context) {
+            if (isLibraryLoaded) return
             try {
                 System.loadLibrary("coqui-tts-android")
-                Log.i(TAG, "coqui-tts-android native library loaded")
+                isLibraryLoaded = true
+                Log.i(TAG, "coqui-tts-android native library loaded from system")
             } catch (e: UnsatisfiedLinkError) {
-                Log.w(TAG, "coqui-tts-android native library not available", e)
+                // Try to load from internal files directory
+                val abi = android.os.Build.SUPPORTED_ABIS.firstOrNull() ?: "arm64-v8a"
+                val localLib = File(context.filesDir, "libs/$abi/libcoqui-tts-android.so")
+                if (localLib.exists()) {
+                    try {
+                        System.load(localLib.absolutePath)
+                        isLibraryLoaded = true
+                        Log.i(TAG, "coqui-tts-android native library loaded from: ${localLib.absolutePath}")
+                    } catch (e2: UnsatisfiedLinkError) {
+                        Log.e(TAG, "Failed to load coqui-tts-android from internal storage", e2)
+                    }
+                } else {
+                    Log.w(TAG, "coqui-tts-android native library not available")
+                }
             }
         }
     }
@@ -79,6 +96,12 @@ class CoquiTextToSpeech(private val context: Context) {
      * @return true if initialization succeeded
      */
     suspend fun initialize(modelPath: String = "tts-model"): Boolean = withContext(Dispatchers.IO) {
+        loadNativeLibrary(context)
+        if (!isLibraryLoaded) {
+            Log.e(TAG, "Cannot initialize: native library not loaded")
+            return@withContext false
+        }
+        
         val modelDir = resolveModelPath(modelPath)
         if (modelDir == null) {
             Log.e(TAG, "TTS model directory not found: $modelPath")
