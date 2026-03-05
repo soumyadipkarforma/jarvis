@@ -36,6 +36,9 @@ class JarvisForegroundService : Service() {
         private const val TAG = "JarvisService"
         const val ACTION_START = "com.jarvis.assistant.action.START"
         const val ACTION_STOP = "com.jarvis.assistant.action.STOP"
+        private const val MAX_SILENCE_FRAMES = 30 // ~2 seconds of silence
+        private const val MAX_RECORDING_DURATION_MS = 15_000L // 15 seconds
+        private const val WAKE_LOCK_TIMEOUT_MS = 10 * 60 * 1000L // 10 minutes
     }
 
     // Binder for activity communication
@@ -206,11 +209,8 @@ class JarvisForegroundService : Service() {
             val bufferSize = AudioUtils.getMinBufferSize()
             val buffer = ShortArray(bufferSize / 2)
             var silenceCounter = 0
-            val maxSilenceFrames = 30  // ~2 seconds of silence at typical frame rates
             var hasHeardSpeech = false
-
             val startTime = System.currentTimeMillis()
-            val maxRecordingTime = 15_000L  // 15 seconds max
 
             while (isRecordingSpeech) {
                 val read = audioRecord?.read(buffer, 0, buffer.size) ?: -1
@@ -231,7 +231,7 @@ class JarvisForegroundService : Service() {
                 val silent = AudioUtils.isSilent(buffer, read)
                 if (silent) {
                     silenceCounter++
-                    if (hasHeardSpeech && silenceCounter >= maxSilenceFrames) {
+                    if (hasHeardSpeech && silenceCounter >= MAX_SILENCE_FRAMES) {
                         // End of speech detected
                         val finalResult = sttEngine?.getFinalResult() ?: ""
                         finishSpeechRecording(finalResult)
@@ -243,7 +243,7 @@ class JarvisForegroundService : Service() {
                 }
 
                 // Timeout
-                if (System.currentTimeMillis() - startTime > maxRecordingTime) {
+                if (System.currentTimeMillis() - startTime > MAX_RECORDING_DURATION_MS) {
                     val finalResult = sttEngine?.getFinalResult() ?: ""
                     finishSpeechRecording(finalResult)
                     return
@@ -363,7 +363,7 @@ class JarvisForegroundService : Service() {
             PowerManager.PARTIAL_WAKE_LOCK,
             "JarvisAssistant::WakeWordLock"
         ).apply {
-            acquire(10 * 60 * 1000L) // 10 minutes max
+            acquire(WAKE_LOCK_TIMEOUT_MS)
         }
     }
 

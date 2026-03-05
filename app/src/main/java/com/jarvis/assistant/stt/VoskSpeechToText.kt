@@ -23,11 +23,6 @@ import java.io.IOException
  */
 class VoskSpeechToText(private val context: Context) {
 
-    companion object {
-        private const val TAG = "VoskSTT"
-        private const val SAMPLE_RATE = 16000.0f
-    }
-
     private var model: Model? = null
     private var recognizer: Recognizer? = null
     private var isInitialized = false
@@ -176,8 +171,19 @@ class VoskSpeechToText(private val context: Context) {
      * Vosk returns JSON like: {"text": "hello world"} or {"partial": "hello"}
      */
     internal fun parseResultText(json: String): String {
-        // Simple JSON parsing to avoid adding a JSON dependency just for this
-        val textMatch = Regex(""""(?:text|partial)"\s*:\s*"([^"]*)"""").find(json)
-        return textMatch?.groupValues?.getOrNull(1)?.trim() ?: ""
+        return parseVoskResult(json)
+    }
+
+    companion object {
+        private const val TAG = "VoskSTT"
+        private const val SAMPLE_RATE = 16000.0f
+
+        /**
+         * Parse the recognized text from a Vosk JSON response string.
+         */
+        fun parseVoskResult(json: String): String {
+            val textMatch = Regex(""""(?:text|partial)"\s*:\s*"([^"]*)"""").find(json)
+            return textMatch?.groupValues?.getOrNull(1)?.trim() ?: ""
+        }
     }
 }

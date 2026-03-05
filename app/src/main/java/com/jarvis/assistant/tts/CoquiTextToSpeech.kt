@@ -32,8 +32,11 @@ class CoquiTextToSpeech(private val context: Context) {
 
     companion object {
         private const val TAG = "CoquiTTS"
+        /** 22050 Hz sample rate: standard for TTS, balances quality and performance */
         private const val SAMPLE_RATE = 22050
         private const val DEFAULT_SPEED = 0.9f  // Slightly slower for gravitas
+        private const val JARVIS_VOICE_PITCH = 0.85f
+        private const val JARVIS_VOICE_SPEED = 0.9f
 
         init {
             try {
@@ -90,7 +93,7 @@ class CoquiTextToSpeech(private val context: Context) {
             }
 
             // Configure for deep male voice
-            nativeSetSpeakerParams(ttsPointer, 0.85f, 0.9f) // pitch=0.85, speed=0.9
+            nativeSetSpeakerParams(ttsPointer, JARVIS_VOICE_PITCH, JARVIS_VOICE_SPEED)
 
             initAudioTrack()
             isInitialized = true

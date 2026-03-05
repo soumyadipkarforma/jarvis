@@ -11,8 +11,7 @@ class LlamaLLMEngineTest {
 
     @Test
     fun `buildPrompt creates correct format without history`() {
-        val engine = createEngineForTesting()
-        val prompt = engine.buildPrompt("What is the weather?")
+        val prompt = LlamaLLMEngine.buildPrompt("What is the weather?")
 
         assertTrue(prompt.contains("### System:"))
         assertTrue(prompt.contains("### Human: What is the weather?"))
@@ -22,12 +21,11 @@ class LlamaLLMEngineTest {
 
     @Test
     fun `buildPrompt includes conversation history`() {
-        val engine = createEngineForTesting()
         val history = listOf(
             "Hello" to "Hello! How can I help?",
             "Tell me a joke" to "Why did the chicken cross the road?"
         )
-        val prompt = engine.buildPrompt("Another one", history)
+        val prompt = LlamaLLMEngine.buildPrompt("Another one", history)
 
         assertTrue(prompt.contains("### Human: Hello"))
         assertTrue(prompt.contains("### Assistant: Hello! How can I help?"))
@@ -37,7 +35,6 @@ class LlamaLLMEngineTest {
 
     @Test
     fun `buildPrompt limits conversation history to last 3 turns`() {
-        val engine = createEngineForTesting()
         val history = listOf(
             "Q1" to "A1",
             "Q2" to "A2",
@@ -45,7 +42,7 @@ class LlamaLLMEngineTest {
             "Q4" to "A4",
             "Q5" to "A5"
         )
-        val prompt = engine.buildPrompt("Q6", history)
+        val prompt = LlamaLLMEngine.buildPrompt("Q6", history)
 
         // Should only contain last 3 history items
         assertFalse(prompt.contains("### Human: Q1"))
@@ -58,20 +55,8 @@ class LlamaLLMEngineTest {
 
     @Test
     fun `buildPrompt ends with Assistant marker`() {
-        val engine = createEngineForTesting()
-        val prompt = engine.buildPrompt("test")
+        val prompt = LlamaLLMEngine.buildPrompt("test")
 
         assertTrue(prompt.trimEnd().endsWith("### Assistant:"))
-    }
-
-    /**
-     * Create a LlamaLLMEngine instance for testing.
-     */
-    private fun createEngineForTesting(): LlamaLLMEngine {
-        val unsafe = sun.misc.Unsafe::class.java.getDeclaredField("theUnsafe")
-        unsafe.isAccessible = true
-        val unsafeInstance = unsafe.get(null) as sun.misc.Unsafe
-        @Suppress("UNCHECKED_CAST")
-        return unsafeInstance.allocateInstance(LlamaLLMEngine::class.java) as LlamaLLMEngine
     }
 }

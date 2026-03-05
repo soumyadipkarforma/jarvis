@@ -104,14 +104,21 @@ class CommandProcessor(private val context: Context) {
             }
         )
 
-        // Find the best matching app
+        // Find the best matching app: prefer exact match, then shortest containing match
         val normalizedAppName = appName.lowercase()
         val matchingApp = intent
-            .sortedBy { it.loadLabel(packageManager).toString().length }
-            .firstOrNull { resolveInfo ->
+            .map { resolveInfo ->
                 val label = resolveInfo.loadLabel(packageManager).toString().lowercase()
-                label == normalizedAppName || label.contains(normalizedAppName)
+                resolveInfo to label
             }
+            .filter { (_, label) -> label == normalizedAppName || label.contains(normalizedAppName) }
+            .sortedWith(compareByDescending<Pair<android.content.pm.ResolveInfo, String>> { (_, label) ->
+                label == normalizedAppName  // Exact matches first
+            }.thenBy { (_, label) ->
+                label.length  // Then shortest match
+            })
+            .firstOrNull()
+            ?.first
 
         return if (matchingApp != null) {
             val label = matchingApp.loadLabel(packageManager).toString()

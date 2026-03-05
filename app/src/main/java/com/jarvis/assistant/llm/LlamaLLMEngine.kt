@@ -25,23 +25,6 @@ import java.io.File
  */
 class LlamaLLMEngine(private val context: Context) {
 
-    companion object {
-        private const val TAG = "LlamaLLM"
-        private const val DEFAULT_MODEL_NAME = "phi-2.Q4_K_M.gguf"
-        private const val SYSTEM_PROMPT = """You are Jarvis, a highly intelligent and helpful AI assistant. 
-You speak in a refined, professional manner similar to a British butler. 
-Keep responses concise and helpful. You are running on an Android device offline."""
-
-        init {
-            try {
-                System.loadLibrary("llama-android")
-                Log.i(TAG, "llama-android native library loaded")
-            } catch (e: UnsatisfiedLinkError) {
-                Log.w(TAG, "llama-android native library not available", e)
-            }
-        }
-    }
-
     private var modelPointer: Long = 0L
     private var contextPointer: Long = 0L
     private var isLoaded = false
@@ -74,7 +57,7 @@ Keep responses concise and helpful. You are running on an Android device offline
                 return@withContext false
             }
 
-            contextPointer = nativeCreateContext(modelPointer, 2048)
+            contextPointer = nativeCreateContext(modelPointer, DEFAULT_CONTEXT_SIZE)
             if (contextPointer == 0L) {
                 Log.e(TAG, "Failed to create context")
                 nativeFreeModel(modelPointer)
@@ -125,23 +108,51 @@ Keep responses concise and helpful. You are running on an Android device offline
     internal fun buildPrompt(
         userInput: String,
         conversationHistory: List<Pair<String, String>> = emptyList()
-    ): String {
-        val sb = StringBuilder()
-        sb.appendLine("### System:")
-        sb.appendLine(SYSTEM_PROMPT)
-        sb.appendLine()
+    ): String = Companion.buildPrompt(userInput, conversationHistory)
 
-        // Add conversation history (last few turns)
-        val recentHistory = conversationHistory.takeLast(3)
-        for ((user, assistant) in recentHistory) {
-            sb.appendLine("### Human: $user")
-            sb.appendLine("### Assistant: $assistant")
-            sb.appendLine()
+    companion object {
+        private const val TAG = "LlamaLLM"
+        private const val DEFAULT_MODEL_NAME = "phi-2.Q4_K_M.gguf"
+        private const val DEFAULT_CONTEXT_SIZE = 2048
+        private const val MAX_HISTORY_TURNS = 3
+        private const val SYSTEM_PROMPT = """You are Jarvis, a highly intelligent and helpful AI assistant. 
+You speak in a refined, professional manner similar to a British butler. 
+Keep responses concise and helpful. You are running on an Android device offline."""
+
+        init {
+            try {
+                System.loadLibrary("llama-android")
+                Log.i(TAG, "llama-android native library loaded")
+            } catch (e: UnsatisfiedLinkError) {
+                Log.w(TAG, "llama-android native library not available", e)
+            }
         }
 
-        sb.appendLine("### Human: $userInput")
-        sb.appendLine("### Assistant:")
-        return sb.toString()
+        /**
+         * Build a prompt string with system instructions and conversation context.
+         * Exposed as a static method for testability.
+         */
+        fun buildPrompt(
+            userInput: String,
+            conversationHistory: List<Pair<String, String>> = emptyList()
+        ): String {
+            val sb = StringBuilder()
+            sb.appendLine("### System:")
+            sb.appendLine(SYSTEM_PROMPT)
+            sb.appendLine()
+
+            // Add conversation history (last few turns)
+            val recentHistory = conversationHistory.takeLast(MAX_HISTORY_TURNS)
+            for ((user, assistant) in recentHistory) {
+                sb.appendLine("### Human: $user")
+                sb.appendLine("### Assistant: $assistant")
+                sb.appendLine()
+            }
+
+            sb.appendLine("### Human: $userInput")
+            sb.appendLine("### Assistant:")
+            return sb.toString()
+        }
     }
 
     /**

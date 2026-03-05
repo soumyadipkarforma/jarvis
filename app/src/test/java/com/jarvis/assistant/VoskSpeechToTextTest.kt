@@ -10,49 +10,31 @@ import org.junit.Test
 class VoskSpeechToTextTest {
 
     @Test
-    fun `parseResultText extracts text from full result JSON`() {
-        val stt = createSttForTesting()
+    fun `parseVoskResult extracts text from full result JSON`() {
         val json = """{"text" : "hello world"}"""
-        assertEquals("hello world", stt.parseResultText(json))
+        assertEquals("hello world", VoskSpeechToText.parseVoskResult(json))
     }
 
     @Test
-    fun `parseResultText extracts partial text`() {
-        val stt = createSttForTesting()
+    fun `parseVoskResult extracts partial text`() {
         val json = """{"partial" : "hello"}"""
-        assertEquals("hello", stt.parseResultText(json))
+        assertEquals("hello", VoskSpeechToText.parseVoskResult(json))
     }
 
     @Test
-    fun `parseResultText returns empty for empty text`() {
-        val stt = createSttForTesting()
+    fun `parseVoskResult returns empty for empty text`() {
         val json = """{"text" : ""}"""
-        assertEquals("", stt.parseResultText(json))
+        assertEquals("", VoskSpeechToText.parseVoskResult(json))
     }
 
     @Test
-    fun `parseResultText returns empty for invalid JSON`() {
-        val stt = createSttForTesting()
-        assertEquals("", stt.parseResultText("not json"))
+    fun `parseVoskResult returns empty for invalid JSON`() {
+        assertEquals("", VoskSpeechToText.parseVoskResult("not json"))
     }
 
     @Test
-    fun `parseResultText handles whitespace in text`() {
-        val stt = createSttForTesting()
+    fun `parseVoskResult handles whitespace in text`() {
         val json = """{"text" : " open chrome "}"""
-        assertEquals("open chrome", stt.parseResultText(json))
-    }
-
-    /**
-     * Create a VoskSpeechToText instance for testing.
-     * Uses reflection to avoid needing an Android context.
-     */
-    private fun createSttForTesting(): VoskSpeechToText {
-        // Use unsafe allocation to bypass constructor (no Android context needed for parsing)
-        val unsafe = sun.misc.Unsafe::class.java.getDeclaredField("theUnsafe")
-        unsafe.isAccessible = true
-        val unsafeInstance = unsafe.get(null) as sun.misc.Unsafe
-        @Suppress("UNCHECKED_CAST")
-        return unsafeInstance.allocateInstance(VoskSpeechToText::class.java) as VoskSpeechToText
+        assertEquals("open chrome", VoskSpeechToText.parseVoskResult(json))
     }
 }

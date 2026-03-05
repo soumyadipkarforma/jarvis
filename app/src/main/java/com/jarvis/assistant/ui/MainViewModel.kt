@@ -29,6 +29,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     companion object {
         private const val TAG = "MainViewModel"
+        private const val MAX_CONVERSATION_HISTORY = 10
     }
 
     // Engines
@@ -146,7 +147,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                         val response = llmEngine.generateResponse(userText, conversationHistory)
                         conversationHistory.add(userText to response)
                         // Keep history manageable
-                        if (conversationHistory.size > 10) {
+                        if (conversationHistory.size > MAX_CONVERSATION_HISTORY) {
                             conversationHistory.removeAt(0)
                         }
                         respondWithText(response)

@@ -14,6 +14,7 @@ object AudioUtils {
     const val SAMPLE_RATE = 16000
     const val CHANNEL_CONFIG = AudioFormat.CHANNEL_IN_MONO
     const val AUDIO_FORMAT = AudioFormat.ENCODING_PCM_16BIT
+    const val DEFAULT_SILENCE_THRESHOLD = 500.0
 
     /**
      * Calculate the minimum buffer size for audio recording.
@@ -83,7 +84,7 @@ object AudioUtils {
     /**
      * Determine if an audio buffer is silent based on RMS threshold.
      */
-    fun isSilent(buffer: ShortArray, length: Int, threshold: Double = 500.0): Boolean {
+    fun isSilent(buffer: ShortArray, length: Int, threshold: Double = DEFAULT_SILENCE_THRESHOLD): Boolean {
         return calculateRMS(buffer, length) < threshold
     }
 }
