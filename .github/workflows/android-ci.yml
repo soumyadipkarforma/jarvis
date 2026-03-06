@@ -29,7 +29,7 @@ jobs:
       - name: Prepare native dependencies
         run: |
           mkdir -p app/src/main/cpp
-          git clone --depth 1 https://github.com/ggerganov/llama.cpp.git app/src/main/cpp/llama.cpp
+          git clone --depth 1 --recursive https://github.com/ggerganov/llama.cpp.git app/src/main/cpp/llama.cpp
 
       - name: Run unit tests
         run: ./gradlew test
