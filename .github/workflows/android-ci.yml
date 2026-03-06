@@ -107,7 +107,7 @@ jobs:
           rm vosk-model.zip
 
       - name: Grant execute permission for gradlew
-
+        run: chmod +x gradlew
       - name: Run unit tests
         run: ./gradlew test
 
