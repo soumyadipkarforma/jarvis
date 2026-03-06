@@ -81,12 +81,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             val missingVosk = !downloadManager.isModelDownloaded(config.voskModelPath)
             val missingLlama = !downloadManager.isModelDownloaded(config.llamaModelPath)
             
-            // Check for native libraries
-            val abi = android.os.Build.SUPPORTED_ABIS.firstOrNull() ?: "arm64-v8a"
-            val missingLibs = !java.io.File(getApplication<Application>().filesDir, "libs/$abi/libllama-android.so").exists()
-            
-            if (missingVosk || missingLlama || missingLibs) {
-                _statusText.postValue("AI models and libraries need to be downloaded.")
+            if (missingVosk || missingLlama) {
+                _statusText.postValue("AI models need to be downloaded.")
                 _showDownloadPrompt.postValue(true)
                 return@launch
             }
@@ -123,19 +119,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     com.jarvis.assistant.util.ModelDownloadManager.PHI2_MODEL_URL,
                     config.llamaModelPath
                 ) { progress -> _downloadProgress.postValue(progress) }
-
-                // Download Native Libraries
-                _statusText.postValue("Downloading Native Components...")
-                val libsZip = downloadManager.downloadFile(
-                    com.jarvis.assistant.util.ModelDownloadManager.NATIVE_LIBS_URL,
-                    "native-libs.zip"
-                ) { progress -> _downloadProgress.postValue(progress) }
-                
-                if (libsZip != null) {
-                    _statusText.postValue("Installing Native Components...")
-                    downloadManager.unzipFile(libsZip, "libs")
-                    libsZip.delete()
-                }
 
                 _statusText.postValue("Download complete! Initializing...")
                 actuallyInitialize()
