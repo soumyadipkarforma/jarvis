@@ -87,6 +87,7 @@ class JarvisForegroundService : Service() {
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         when (intent?.action) {
             ACTION_STOP -> {
+                stopAllListening()
                 stopSelf()
                 return START_NOT_STICKY
             }
@@ -107,30 +108,38 @@ class JarvisForegroundService : Service() {
         serviceScope.launch {
             try {
                 // Initialize wake word engine
-                wakeWordEngine = WakeWordEngine(this@JarvisForegroundService)
-                val accessKey = getSharedPreferences("jarvis_prefs", MODE_PRIVATE)
-                    .getString("porcupine_key", "") ?: ""
+                if (wakeWordEngine == null) {
+                    wakeWordEngine = WakeWordEngine(this@JarvisForegroundService)
+                    val accessKey = getSharedPreferences("jarvis_prefs", MODE_PRIVATE)
+                        .getString("porcupine_key", "") ?: ""
 
-                if (accessKey.isEmpty()) {
-                    Log.w(TAG, "Porcupine access key not set")
-                    callback?.onError("Wake word engine needs a Picovoice access key")
-                    return@launch
-                }
+                    if (accessKey.isEmpty()) {
+                        Log.w(TAG, "Porcupine access key not set")
+                        // In a real Jarvis app, we might have a default key or prompt
+                        callback?.onError("Wake word engine needs a Picovoice access key")
+                        // return@launch // Don't return, maybe it works with built-in?
+                    }
 
-                val initialized = wakeWordEngine?.initialize(accessKey) ?: false
-                if (!initialized) {
-                    callback?.onError("Failed to initialize wake word engine")
-                    return@launch
+                    val initialized = wakeWordEngine?.initialize(accessKey) ?: false
+                    if (!initialized) {
+                        Log.e(TAG, "Failed to initialize Porcupine")
+                        callback?.onError("Failed to initialize wake word engine")
+                        return@launch
+                    }
                 }
 
                 // Initialize audio recording
-                audioRecord = AudioUtils.createAudioRecord()
                 if (audioRecord == null) {
+                    audioRecord = AudioUtils.createAudioRecord()
+                }
+                
+                if (audioRecord == null || audioRecord?.state != AudioRecord.STATE_INITIALIZED) {
+                    Log.e(TAG, "Microphone not available")
                     callback?.onError("Failed to access microphone")
                     return@launch
                 }
 
-                // Acquire wake lock
+                // Acquire wake lock to keep listening in background
                 acquireWakeLock()
 
                 // Start listening
@@ -141,25 +150,29 @@ class JarvisForegroundService : Service() {
                 val frameLength = wakeWordEngine?.frameLength ?: 512
                 val buffer = ShortArray(frameLength)
 
-                Log.i(TAG, "Wake word detection started (frame=$frameLength)")
+                Log.i(TAG, "Jarvis background listening started...")
 
                 while (isListeningForWakeWord && isActive) {
                     val read = audioRecord?.read(buffer, 0, frameLength) ?: -1
-                    if (read > 0) {
+                    if (read == frameLength) {
                         val detected = wakeWordEngine?.processFrame(buffer) ?: false
                         if (detected) {
-                            Log.i(TAG, "Wake word detected!")
+                            Log.i(TAG, "Jarvis woke up!")
                             handleWakeWordDetected()
                         }
+                    } else if (read < 0) {
+                        Log.e(TAG, "Error reading from AudioRecord: $read")
+                        break
                     }
                 }
             } catch (e: CancellationException) {
-                // Normal cancellation
+                Log.i(TAG, "Wake word detection cancelled")
             } catch (e: Exception) {
-                Log.e(TAG, "Error in wake word detection loop", e)
-                callback?.onError("Wake word detection error: ${e.message}")
+                Log.e(TAG, "Error in background loop", e)
+                callback?.onError("Background error: ${e.message}")
             } finally {
                 isListeningForWakeWord = false
+                Log.i(TAG, "Background listening stopped")
             }
         }
     }

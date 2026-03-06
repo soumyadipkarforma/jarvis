@@ -13,7 +13,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        abi: [arm64-v8a, x86_64]
+        abi: [arm64-v8a]
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -96,15 +96,26 @@ jobs:
           done
           ls -R
 
-      - name: Bundle Vosk Model into Assets
+      - name: Bundle AI Models into Assets
         run: |
           mkdir -p app/src/main/assets
+          
+          # 1. Vosk STT Model (~40MB)
+          echo "Downloading Vosk Model..."
           curl -L "https://alphacephei.com/vosk/models/vosk-model-small-en-us-0.15.zip" -o vosk-model.zip
-          unzip vosk-model.zip
-          # The zip extracts to a folder like vosk-model-small-en-us-0.15
-          # We want it as assets/model-small-en-us
+          unzip -q vosk-model.zip
           mv vosk-model-small-en-us-0.15 app/src/main/assets/model-small-en-us
           rm vosk-model.zip
+
+          # 2. Llama Phi-2 LLM Model (~1.7GB)
+          echo "Downloading Phi-2 Model..."
+          curl -L "https://huggingface.co/TheBloke/phi-2-GGUF/resolve/main/phi-2.Q4_K_M.gguf" -o app/src/main/assets/phi-2.Q4_K_M.gguf
+
+          # 3. Piper TTS Model (~30MB)
+          echo "Downloading Piper TTS Model..."
+          # Using a high-quality male voice suitable for Jarvis
+          curl -L "https://huggingface.co/rhasspy/piper-voices/resolve/v1.0.0/en/en_US/lessac/medium/en_US-lessac-medium.onnx" -o app/src/main/assets/tts-model.onnx
+          curl -L "https://huggingface.co/rhasspy/piper-voices/resolve/v1.0.0/en/en_US/lessac/medium/en_US-lessac-medium.onnx.json" -o app/src/main/assets/tts-model.onnx.json
 
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew
