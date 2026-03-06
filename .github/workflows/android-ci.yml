@@ -57,7 +57,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: models-cache
-          key: ai-models-v1
+          key: ai-models-v2
 
       - name: Download Models
         if: steps.cache-models.outputs.cache-hit != 'true'
@@ -69,8 +69,8 @@ jobs:
           unzip -q vosk.zip
           mv vosk-model-small-en-us-0.15/* models-cache/model-small-en-us/
           
-          echo "Downloading Phi-2..."
-          curl -L "https://huggingface.co/TheBloke/phi-2-GGUF/resolve/main/phi-2.Q4_K_M.gguf" -o models-cache/phi-2.Q4_K_M.gguf
+          echo "Downloading SmolLM-360M..."
+          curl -L "https://huggingface.co/bartowski/SmolLM-360M-Instruct-GGUF/resolve/main/SmolLM-360M-Instruct-Q4_K_M.gguf" -o models-cache/SmolLM-360M-Instruct-Q4_K_M.gguf
           
           echo "Downloading Piper..."
           curl -L "https://huggingface.co/rhasspy/piper-voices/resolve/v1.0.0/en/en_US/lessac/medium/en_US-lessac-medium.onnx" -o models-cache/tts-model.onnx

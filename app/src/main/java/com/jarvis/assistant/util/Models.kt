@@ -40,8 +40,8 @@ sealed class VoiceResult {
 data class JarvisConfig(
     val porcupineAccessKey: String = "",
     val voskModelPath: String = "model-small-en-us",
-    val llamaModelPath: String = "phi-2.Q4_K_M.gguf",
-    val coquiModelPath: String = "tts-model",
+    val llamaModelPath: String = "SmolLM-360M-Instruct-Q4_K_M.gguf",
+    val coquiModelPath: String = "tts-model.onnx",
     val maxLLMTokens: Int = 256,
     val sampleRate: Int = 16000,
     val silenceTimeoutMs: Long = 2000L

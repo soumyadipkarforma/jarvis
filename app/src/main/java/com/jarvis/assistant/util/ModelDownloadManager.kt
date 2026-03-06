@@ -27,7 +27,7 @@ class ModelDownloadManager(private val context: Context) {
         
         // Stable URLs
         const val VOSK_MODEL_URL = "https://alphacephei.com/vosk/models/vosk-model-small-en-us-0.15.zip"
-        const val PHI2_MODEL_URL = "https://huggingface.co/TheBloke/phi-2-GGUF/resolve/main/phi-2.Q4_K_M.gguf"
+        const val SMOLLM_MODEL_URL = "https://huggingface.co/bartowski/SmolLM-360M-Instruct-GGUF/resolve/main/SmolLM-360M-Instruct-Q4_K_M.gguf"
         
         // These still need to be hosted on a reliable server by the developer
         const val COQUI_TTS_URL = "https://github.com/soumyadipkarforma/jarvis/releases/download/v1.0.0/tts-model.zip"
@@ -154,6 +154,65 @@ class ModelDownloadManager(private val context: Context) {
         } catch (e: Exception) {
             Log.e(TAG, "Unzip failed for ${zipFile.name}", e)
             targetDir.deleteRecursively()
+            false
+        }
+    }
+
+    /**
+     * Copy a file from assets to the internal files directory.
+     */
+    suspend fun copyAssetToFile(assetName: String, targetFileName: String, progressListener: (Int) -> Unit): File? = withContext(Dispatchers.IO) {
+        val targetFile = File(context.filesDir, targetFileName)
+        if (targetFile.exists()) return@withContext targetFile
+        
+        try {
+            context.assets.open(assetName).use { input ->
+                val totalSize = input.available().toLong()
+                FileOutputStream(targetFile).use { output ->
+                    val buffer = ByteArray(8192)
+                    var bytesRead: Int
+                    var totalBytesRead: Long = 0
+                    
+                    while (input.read(buffer).also { bytesRead = it } != -1) {
+                        output.write(buffer, 0, bytesRead)
+                        totalBytesRead += bytesRead
+                        if (totalSize > 0) {
+                            progressListener(((totalBytesRead * 100) / totalSize).toInt())
+                        }
+                    }
+                }
+            }
+            targetFile
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to copy asset $assetName", e)
+            if (targetFile.exists()) targetFile.delete()
+            null
+        }
+    }
+
+    /**
+     * Copy an entire asset directory to internal storage.
+     */
+    suspend fun copyAssetDir(assetDirName: String, targetDirName: String): Boolean = withContext(Dispatchers.IO) {
+        val targetDir = File(context.filesDir, targetDirName)
+        if (targetDir.exists()) return@withContext true
+        targetDir.mkdirs()
+        
+        try {
+            val assets = context.assets.list(assetDirName) ?: return@withContext false
+            for (asset in assets) {
+                val assetPath = "$assetDirName/$asset"
+                val targetFile = File(targetDir, asset)
+                
+                context.assets.open(assetPath).use { input ->
+                    FileOutputStream(targetFile).use { output ->
+                        input.copyTo(output)
+                    }
+                }
+            }
+            true
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to copy asset dir $assetDirName", e)
             false
         }
     }
