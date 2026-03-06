@@ -26,52 +26,10 @@ jobs:
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew
 
-      - name: Build llama.cpp native libraries
+      - name: Prepare native dependencies
         run: |
-          git clone https://github.com/ggerganov/llama.cpp.git
-          cd llama.cpp
-          
-          # Function to build for a specific ABI
-          build_abi() {
-            local abi=$1
-            local platform=$2
-            echo "Building for $abi..."
-            mkdir -p "build-$abi"
-            cmake -S . -B "build-$abi" \
-              -DCMAKE_TOOLCHAIN_FILE=$ANDROID_NDK_LATEST_HOME/build/cmake/android.toolchain.cmake \
-              -DANDROID_ABI=$abi \
-              -DANDROID_PLATFORM=android-$platform \
-              -DBUILD_SHARED_LIBS=ON \
-              -DGGML_OPENMP=OFF \
-              -DGGML_LLAMAFILE=OFF \
-              -DLLAMA_BUILD_EXAMPLES=OFF \
-              -DLLAMA_BUILD_TESTS=OFF \
-              -DLLAMA_BUILD_SERVER=OFF
-            cmake --build "build-$abi" --config Release -j$(nproc)
-            
-            # Copy to project's jniLibs
-            mkdir -p "../app/src/main/jniLibs/$abi"
-            cp "build-$abi"/*.so "../app/src/main/jniLibs/$abi/libllama-android.so"
-          }
-
-          # Build for supported ABIs
-          build_abi "arm64-v8a" "26"
-          build_abi "armeabi-v7a" "26"
-          build_abi "x86_64" "26"
-
-      - name: Download Coqui TTS native libraries
-        run: |
-          # Since building Coqui is complex, we download precompiled versions
-          # Replace with a real direct download link if available
-          download_lib() {
-            local abi=$1
-            mkdir -p "app/src/main/jniLibs/$abi"
-            # Placeholder: In a real scenario, you'd host these .so files
-            # curl -L "https://example.com/libs/$abi/libcoqui-tts-android.so" -o "app/src/main/jniLibs/$abi/libcoqui-tts-android.so"
-          }
-          download_lib "arm64-v8a"
-          download_lib "armeabi-v7a"
-          download_lib "x86_64"
+          mkdir -p app/src/main/cpp
+          git clone --depth 1 https://github.com/ggerganov/llama.cpp.git app/src/main/cpp/llama.cpp
 
       - name: Run unit tests
         run: ./gradlew test
