@@ -19,11 +19,6 @@ import kotlinx.coroutines.launch
 
 /**
  * ViewModel for the main Jarvis Assistant screen.
- *
- * Manages:
- * - Conversation history (chat messages)
- * - Assistant state (idle, listening, processing, speaking)
- * - Coordination between STT, LLM, TTS, and Command engines
  */
 class MainViewModel(application: Application) : AndroidViewModel(application) {
 
@@ -71,18 +66,18 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         private set
 
     /**
-     * Initialize all AI engines. Checks for missing models and native libraries.
+     * Initialize all AI engines. Checks for missing models.
      */
     fun initializeEngines() {
         viewModelScope.launch {
             _statusText.value = "Checking for AI brain..."
 
-            // Only prompt for the large Llama model (1.7GB)
-            // Vosk is now bundled in assets and will be extracted automatically
-            val missingLlama = !downloadManager.isModelDownloaded(config.llamaModelPath)
+            // Check if models are in internal storage
+            val llamaExists = downloadManager.isModelDownloaded(config.llamaModelPath)
+            val voskExists = downloadManager.isModelDownloaded(config.voskModelPath)
             
-            if (missingLlama) {
-                _statusText.postValue("Jarvis needs to download his brain (1.7GB).")
+            if (!llamaExists || !voskExists) {
+                _statusText.postValue("First run: Jarvis needs to initialize (2GB storage required).")
                 _showDownloadPrompt.postValue(true)
                 return@launch
             }
@@ -92,30 +87,41 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     /**
-     * Start the download of required models.
+     * Initialize the assistant by extracting bundled models from assets.
      */
     fun startDownload() {
         _showDownloadPrompt.value = false
-        _statusText.value = "Downloading Brain Model..."
+        _statusText.value = "Initializing AI Components..."
         
         viewModelScope.launch {
             try {
-                // Download Llama Model (Primary requirement)
-                _statusText.postValue("Downloading Brain Model (1.7GB)...")
-                val llamaFile = downloadManager.downloadFile(
-                    com.jarvis.assistant.util.ModelDownloadManager.PHI2_MODEL_URL,
+                // 1. Extract SmolLM model from assets
+                _statusText.postValue("Initializing Brain (may take a moment)...")
+                val llamaFile = downloadManager.copyAssetToFile(
+                    config.llamaModelPath,
                     config.llamaModelPath
                 ) { progress -> _downloadProgress.postValue(progress) }
 
-                if (llamaFile == null) {
-                    throw Exception("Failed to download Llama model")
-                }
+                if (llamaFile == null) throw Exception("Failed to extract LLM")
 
-                _statusText.postValue("Download complete! Initializing...")
+                // 2. Extract Vosk model directory from assets
+                _statusText.postValue("Initializing Speech Engine...")
+                val voskSuccess = downloadManager.copyAssetDir(
+                    config.voskModelPath,
+                    config.voskModelPath
+                )
+                if (!voskSuccess) throw Exception("Failed to extract STT")
+
+                // 3. Extract Piper TTS model from assets
+                _statusText.postValue("Initializing Voice...")
+                downloadManager.copyAssetToFile("tts-model.onnx", "tts-model.onnx") {}
+                downloadManager.copyAssetToFile("tts-model.onnx.json", "tts-model.onnx.json") {}
+
+                _statusText.postValue("Setup complete! Jarvis is coming online...")
                 actuallyInitialize()
             } catch (e: Exception) {
-                Log.e(TAG, "Download failed", e)
-                _statusText.postValue("Error: Download failed. Please check connection.")
+                Log.e(TAG, "Initialization failed", e)
+                _statusText.postValue("Error: Failed to initialize. Storage full?")
             }
         }
     }
@@ -138,7 +144,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         if (llmReady) {
             Log.i(TAG, "LLM initialized")
         } else {
-            Log.w(TAG, "LLM not available - will use command processor only")
+            Log.w(TAG, "LLM not available")
         }
 
         // Initialize TTS
@@ -146,7 +152,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         if (ttsReady) {
             Log.i(TAG, "TTS initialized")
         } else {
-            Log.w(TAG, "TTS not available - will use text-only responses")
+            Log.w(TAG, "TTS not available")
         }
 
         _statusText.postValue("Jarvis is ready. Say \"Jarvis\" or tap the mic.")
@@ -155,8 +161,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     /**
      * Process transcribed text through the command processor and LLM.
-     *
-     * @param userText The text recognized from speech
      */
     fun processUserInput(userText: String) {
         if (userText.isBlank()) {
@@ -165,13 +169,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             return
         }
 
-        // Add user message to chat
         addMessage(ChatMessage(userText, isUser = true))
         _state.value = JarvisState.PROCESSING
         _statusText.value = "Processing..."
 
         viewModelScope.launch {
-            // First, try the offline command processor
             val commandResult = commandProcessor.processCommand(userText)
 
             when (commandResult) {
@@ -185,7 +187,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 }
 
                 is CommandProcessor.CommandResult.DirectResponse -> {
-                    // Handle special flashlight commands
                     if (commandResult.response.startsWith("FLASHLIGHT_")) {
                         val action = if (commandResult.response == "FLASHLIGHT_on") "on" else "off"
                         respondWithText("Turning flashlight $action.")
@@ -195,26 +196,21 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 }
 
                 is CommandProcessor.CommandResult.NotACommand -> {
-                    // Not a command — use the LLM
                     if (llmEngine.isReady()) {
                         val response = llmEngine.generateResponse(userText, conversationHistory)
                         conversationHistory.add(userText to response)
-                        // Keep history manageable
                         if (conversationHistory.size > MAX_CONVERSATION_HISTORY) {
                             conversationHistory.removeAt(0)
                         }
                         respondWithText(response)
                     } else {
-                        respondWithText("I can handle commands like 'open <app>', 'set alarm', or 'what time is it'. For conversations, the language model needs to be loaded.")
+                        respondWithText("Offline mode: I can open apps or check the battery. LLM is not loaded.")
                     }
                 }
             }
         }
     }
 
-    /**
-     * Add a Jarvis response to the chat and speak it via TTS.
-     */
     private suspend fun respondWithText(text: String) {
         addMessage(ChatMessage(text, isUser = false))
 
@@ -228,47 +224,29 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         _statusText.postValue("Say \"Jarvis\" or tap the mic.")
     }
 
-    /**
-     * Add a message to the chat history.
-     */
     fun addMessage(message: ChatMessage) {
         val current = _messages.value.orEmpty().toMutableList()
         current.add(message)
         _messages.postValue(current)
     }
 
-    /**
-     * Clear all chat messages.
-     */
     fun clearMessages() {
         _messages.value = emptyList()
         conversationHistory.clear()
     }
 
-    /**
-     * Update the assistant state.
-     */
     fun setState(newState: JarvisState) {
         _state.postValue(newState)
     }
 
-    /**
-     * Update the status text.
-     */
     fun setStatusText(text: String) {
         _statusText.postValue(text)
     }
 
-    /**
-     * Mark the foreground service as running or stopped.
-     */
     fun setServiceRunning(running: Boolean) {
         _serviceRunning.postValue(running)
     }
 
-    /**
-     * Update configuration.
-     */
     fun updateConfig(newConfig: JarvisConfig) {
         config = newConfig
     }

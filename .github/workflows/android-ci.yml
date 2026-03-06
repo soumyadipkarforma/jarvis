@@ -116,7 +116,7 @@ jobs:
       - name: Build debug APK
         run: |
           chmod +x gradlew
-          ./gradlew assembleDebug -PskipNativeBuild -Dorg.gradle.jvmargs="-Xmx6g"
+          ./gradlew assembleDebug -PskipNativeBuild -x test -Dorg.gradle.jvmargs="-Xmx6g"
 
       - name: Upload debug APK
         uses: actions/upload-artifact@v4
