@@ -5,6 +5,12 @@ project("jarvis-assistant")
 # Set the path to llama.cpp
 set(LLAMA_DIR ${CMAKE_CURRENT_SOURCE_DIR}/llama.cpp)
 
+# Fix for armeabi-v7a compilation errors (vld1q_f16 etc)
+if (ANDROID_ABI STREQUAL "armeabi-v7a")
+    set(GGML_OPENMP OFF CACHE BOOL "" FORCE)
+    set(GGML_LLAMAFILE OFF CACHE BOOL "" FORCE)
+endif()
+
 # Build llama.cpp as a library
 add_subdirectory(${LLAMA_DIR})
 

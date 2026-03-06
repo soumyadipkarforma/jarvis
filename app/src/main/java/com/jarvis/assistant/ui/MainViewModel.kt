@@ -75,14 +75,14 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
      */
     fun initializeEngines() {
         viewModelScope.launch {
-            _statusText.value = "Checking for AI models..."
+            _statusText.value = "Checking for AI brain..."
 
-            // Check if models are missing
-            val missingVosk = !downloadManager.isModelDownloaded(config.voskModelPath)
+            // Only prompt for the large Llama model (1.7GB)
+            // Vosk is now bundled in assets and will be extracted automatically
             val missingLlama = !downloadManager.isModelDownloaded(config.llamaModelPath)
             
-            if (missingVosk || missingLlama) {
-                _statusText.postValue("AI models need to be downloaded.")
+            if (missingLlama) {
+                _statusText.postValue("Jarvis needs to download his brain (1.7GB).")
                 _showDownloadPrompt.postValue(true)
                 return@launch
             }
@@ -92,39 +92,30 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     /**
-     * Start the download of required models and libraries.
+     * Start the download of required models.
      */
     fun startDownload() {
         _showDownloadPrompt.value = false
-        _statusText.value = "Downloading AI models..."
+        _statusText.value = "Downloading Brain Model..."
         
         viewModelScope.launch {
             try {
-                // Download Vosk
-                _statusText.postValue("Downloading Speech Engine (50MB)...")
-                val voskZip = downloadManager.downloadFile(
-                    com.jarvis.assistant.util.ModelDownloadManager.VOSK_MODEL_URL, 
-                    "vosk-model.zip"
-                ) { progress -> _downloadProgress.postValue(progress) }
-                
-                if (voskZip != null) {
-                    _statusText.postValue("Extracting Speech Engine...")
-                    downloadManager.unzipFile(voskZip, config.voskModelPath)
-                    voskZip.delete()
-                }
-
-                // Download Llama Model
+                // Download Llama Model (Primary requirement)
                 _statusText.postValue("Downloading Brain Model (1.7GB)...")
-                downloadManager.downloadFile(
+                val llamaFile = downloadManager.downloadFile(
                     com.jarvis.assistant.util.ModelDownloadManager.PHI2_MODEL_URL,
                     config.llamaModelPath
                 ) { progress -> _downloadProgress.postValue(progress) }
+
+                if (llamaFile == null) {
+                    throw Exception("Failed to download Llama model")
+                }
 
                 _statusText.postValue("Download complete! Initializing...")
                 actuallyInitialize()
             } catch (e: Exception) {
                 Log.e(TAG, "Download failed", e)
-                _statusText.postValue("Error: Download failed.")
+                _statusText.postValue("Error: Download failed. Please check connection.")
             }
         }
     }
