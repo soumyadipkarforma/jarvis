@@ -94,15 +94,18 @@ class CommandProcessor(private val context: Context) {
         }
 
         val packageManager = context.packageManager
-        val intent = packageManager.queryIntentActivities(
-            Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER),
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+        val intent = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            packageManager.queryIntentActivities(
+                Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER),
                 PackageManager.ResolveInfoFlags.of(0)
-            } else {
-                @Suppress("DEPRECATION")
+            )
+        } else {
+            @Suppress("DEPRECATION")
+            packageManager.queryIntentActivities(
+                Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER),
                 0
-            }
-        )
+            )
+        }
 
         // Find the best matching app: prefer exact match, then shortest containing match
         val normalizedAppName = appName.lowercase()
@@ -287,14 +290,17 @@ class CommandProcessor(private val context: Context) {
      */
     fun getInstalledApps(): List<String> {
         val packageManager = context.packageManager
-        return packageManager.queryIntentActivities(
-            Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER),
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            packageManager.queryIntentActivities(
+                Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER),
                 PackageManager.ResolveInfoFlags.of(0)
-            } else {
-                @Suppress("DEPRECATION")
+            )
+        } else {
+            @Suppress("DEPRECATION")
+            packageManager.queryIntentActivities(
+                Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER),
                 0
-            }
-        ).map { it.loadLabel(packageManager).toString() }.sorted()
+            )
+        }.map { it.loadLabel(packageManager).toString() }.sorted()
     }
 }

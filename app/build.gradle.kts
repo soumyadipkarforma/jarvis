@@ -17,7 +17,16 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
         ndk {
-            abiFilters += listOf("arm64-v8a", "armeabi-v7a", "x86_64")
+            abiFilters += listOf("arm64-v8a", "x86_64")
+        }
+    }
+
+    if (!project.hasProperty("skipNativeBuild") && file("src/main/cpp/llama.cpp/CMakeLists.txt").exists()) {
+        externalNativeBuild {
+            cmake {
+                path = file("src/main/cpp/CMakeLists.txt")
+                version = "3.22.1"
+            }
         }
     }
 
@@ -46,6 +55,14 @@ android {
 
     buildFeatures {
         viewBinding = true
+    }
+
+    androidResources {
+        noCompress += listOf("gguf", "onnx", "onnx.json")
+    }
+
+    testOptions {
+        unitTests.isReturnDefaultValues = true
     }
 }
 

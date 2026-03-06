@@ -43,6 +43,23 @@ class VoskSpeechToText(private val context: Context) {
      * @param callback Optional callback for initialization completion
      */
     fun initialize(modelPath: String = "model-small-en-us", callback: ((Boolean) -> Unit)? = null) {
+        Log.d(TAG, "Initializing Vosk with modelPath: $modelPath")
+        
+        // First check if it's already in filesDir (from a manual download/unzip)
+        val localModel = java.io.File(context.filesDir, modelPath)
+        if (localModel.exists() && localModel.isDirectory) {
+            try {
+                model = Model(localModel.absolutePath)
+                isInitialized = true
+                Log.i(TAG, "Vosk model loaded from filesDir: ${localModel.absolutePath}")
+                callback?.invoke(true)
+                return
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to load Vosk model from filesDir", e)
+            }
+        }
+
+        // Fallback to asset unpacking
         try {
             StorageService.unpack(context, modelPath, "model",
                 { loadedModel ->
@@ -52,13 +69,13 @@ class VoskSpeechToText(private val context: Context) {
                     callback?.invoke(true)
                 },
                 { exception ->
-                    Log.e(TAG, "Failed to load Vosk model", exception)
+                    Log.e(TAG, "Failed to load Vosk model: ${exception.message}", exception)
                     isInitialized = false
                     callback?.invoke(false)
                 }
             )
         } catch (e: IOException) {
-            Log.e(TAG, "Error unpacking Vosk model", e)
+            Log.e(TAG, "Error unpacking Vosk model: ${e.message}", e)
             callback?.invoke(false)
         }
     }
@@ -69,17 +86,17 @@ class VoskSpeechToText(private val context: Context) {
      */
     fun startListening(): Boolean {
         if (!isInitialized || model == null) {
-            Log.e(TAG, "Vosk model not initialized")
+            Log.e(TAG, "Vosk model not initialized (isInitialized=$isInitialized, model=${model != null})")
             return false
         }
 
         return try {
             recognizer?.close()
             recognizer = Recognizer(model, SAMPLE_RATE)
-            Log.d(TAG, "Recognition session started")
+            Log.d(TAG, "Recognition session started with sample rate $SAMPLE_RATE")
             true
         } catch (e: Exception) {
-            Log.e(TAG, "Failed to create recognizer", e)
+            Log.e(TAG, "Failed to create recognizer: ${e.message}", e)
             false
         }
     }

@@ -1,0 +1,125 @@
+name: Android CI (Quantized)
+
+on:
+  push:
+    branches: [ "main", "master", "copilot/*" ]
+  pull_request:
+    branches: [ "main", "master" ]
+
+jobs:
+  # Job 1: Build Native Libraries (arm64 only for speed as requested)
+  build-native:
+    name: Build Native (arm64-v8a)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Cache llama.cpp source
+        id: cache-llama
+        uses: actions/cache@v4
+        with:
+          path: app/src/main/cpp/llama.cpp
+          key: llama-cpp-source-v1
+
+      - name: Prepare native dependencies
+        if: steps.cache-llama.outputs.cache-hit != 'true'
+        run: |
+          mkdir -p app/src/main/cpp
+          git clone --depth 1 --recursive https://github.com/ggerganov/llama.cpp.git app/src/main/cpp/llama.cpp
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+
+      - name: Build Native Library
+        run: |
+          chmod +x gradlew
+          ./gradlew :app:externalNativeBuildDebug \
+            -Pandroid.injected.build.abi=arm64-v8a \
+            -Dorg.gradle.jvmargs="-Xmx4g"
+
+      - name: Upload Native Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: native-libs-arm64-v8a
+          path: app/build/intermediates/cmake/debug/obj/arm64-v8a/*.so
+
+  # Job 2: Prepare Large Models (Cached)
+  prepare-models:
+    name: Prepare AI Models
+    runs-on: ubuntu-latest
+    steps:
+      - name: Cache Models
+        id: cache-models
+        uses: actions/cache@v4
+        with:
+          path: models-cache
+          key: ai-models-v2
+
+      - name: Download Models
+        if: steps.cache-models.outputs.cache-hit != 'true'
+        run: |
+          mkdir -p models-cache/model-small-en-us
+          
+          echo "Downloading Vosk..."
+          curl -L "https://alphacephei.com/vosk/models/vosk-model-small-en-us-0.15.zip" -o vosk.zip
+          unzip -q vosk.zip
+          mv vosk-model-small-en-us-0.15/* models-cache/model-small-en-us/
+          
+          echo "Downloading SmolLM-360M..."
+          curl -L "https://huggingface.co/bartowski/SmolLM-360M-Instruct-GGUF/resolve/main/SmolLM-360M-Instruct-Q4_K_M.gguf" -o models-cache/SmolLM-360M-Instruct-Q4_K_M.gguf
+          
+          echo "Downloading Piper..."
+          curl -L "https://huggingface.co/rhasspy/piper-voices/resolve/v1.0.0/en/en_US/lessac/medium/en_US-lessac-medium.onnx" -o models-cache/tts-model.onnx
+          curl -L "https://huggingface.co/rhasspy/piper-voices/resolve/v1.0.0/en/en_US/lessac/medium/en_US-lessac-medium.onnx.json" -o models-cache/tts-model.onnx.json
+
+      - name: Upload Models Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ai-models
+          path: models-cache/
+
+  # Job 3: Final APK Assembly
+  build-apk:
+    name: Assemble APK
+    needs: [build-native, prepare-models]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+          cache: 'gradle'
+
+      - name: Download Native Libs
+        uses: actions/download-artifact@v4
+        with:
+          name: native-libs-arm64-v8a
+          path: app/src/main/jniLibs/arm64-v8a
+
+      - name: Download Models
+        uses: actions/download-artifact@v4
+        with:
+          name: ai-models
+          path: app/src/main/assets
+
+      - name: Verify Assets
+        run: ls -R app/src/main/assets
+
+      - name: Build debug APK
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleDebug -PskipNativeBuild -x test -Dorg.gradle.jvmargs="-Xmx6g"
+
+      - name: Upload debug APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: jarvis-full-debug
+          path: app/build/outputs/apk/debug/app-debug.apk

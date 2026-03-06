@@ -42,6 +42,12 @@ class LlamaLLMEngine(private val context: Context) {
         modelPath: String = DEFAULT_MODEL_NAME,
         maxTokens: Int = 256
     ): Boolean = withContext(Dispatchers.IO) {
+        loadNativeLibrary(context)
+        if (!isLibraryLoaded) {
+            Log.e(TAG, "Cannot initialize: native library not loaded")
+            return@withContext false
+        }
+        
         this@LlamaLLMEngine.maxTokens = maxTokens
 
         val modelFile = resolveModelPath(modelPath)
@@ -119,12 +125,29 @@ class LlamaLLMEngine(private val context: Context) {
 You speak in a refined, professional manner similar to a British butler. 
 Keep responses concise and helpful. You are running on an Android device offline."""
 
-        init {
+        private var isLibraryLoaded = false
+
+        private fun loadNativeLibrary(context: Context) {
+            if (isLibraryLoaded) return
             try {
                 System.loadLibrary("llama-android")
-                Log.i(TAG, "llama-android native library loaded")
+                isLibraryLoaded = true
+                Log.i(TAG, "llama-android native library loaded from system")
             } catch (e: UnsatisfiedLinkError) {
-                Log.w(TAG, "llama-android native library not available", e)
+                // Try to load from internal files directory
+                val abi = android.os.Build.SUPPORTED_ABIS.firstOrNull() ?: "arm64-v8a"
+                val localLib = File(context.filesDir, "libs/$abi/libllama-android.so")
+                if (localLib.exists()) {
+                    try {
+                        System.load(localLib.absolutePath)
+                        isLibraryLoaded = true
+                        Log.i(TAG, "llama-android native library loaded from: ${localLib.absolutePath}")
+                    } catch (e2: UnsatisfiedLinkError) {
+                        Log.e(TAG, "Failed to load llama-android from internal storage", e2)
+                    }
+                } else {
+                    Log.w(TAG, "llama-android native library not available")
+                }
             }
         }
 
