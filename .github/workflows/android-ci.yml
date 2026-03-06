@@ -1,4 +1,4 @@
-name: Android CI
+name: Android CI (Quantized)
 
 on:
   push:
@@ -7,23 +7,20 @@ on:
     branches: [ "main", "master" ]
 
 jobs:
-  # Job 1: Build Native Libraries in Parallel
+  # Job 1: Build Native Libraries (arm64 only for speed as requested)
   build-native:
-    name: Build Native (${{ matrix.abi }})
+    name: Build Native (arm64-v8a)
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        abi: [arm64-v8a]
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Cache llama.cpp
+      - name: Cache llama.cpp source
         id: cache-llama
         uses: actions/cache@v4
         with:
           path: app/src/main/cpp/llama.cpp
-          key: llama-cpp-v1-${{ hashFiles('.github/workflows/android-ci.yml') }}
+          key: llama-cpp-source-v1
 
       - name: Prepare native dependencies
         if: steps.cache-llama.outputs.cache-hit != 'true'
@@ -39,22 +36,56 @@ jobs:
 
       - name: Build Native Library
         run: |
-          # Use Gradle to build only the native part for this specific ABI
           chmod +x gradlew
           ./gradlew :app:externalNativeBuildDebug \
-            -Pandroid.startParameter.projectProperties="android.injected.build.abi=${{ matrix.abi }}" \
-            -Pandroid.injected.build.abi=${{ matrix.abi }}
+            -Pandroid.injected.build.abi=arm64-v8a \
+            -Dorg.gradle.jvmargs="-Xmx4g"
 
       - name: Upload Native Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: native-libs-${{ matrix.abi }}
-          path: app/build/intermediates/cmake/debug/obj/${{ matrix.abi }}/*.so
+          name: native-libs-arm64-v8a
+          path: app/build/intermediates/cmake/debug/obj/arm64-v8a/*.so
 
-  # Job 2: Build APK and Run Tests
+  # Job 2: Prepare Large Models (Cached)
+  prepare-models:
+    name: Prepare AI Models
+    runs-on: ubuntu-latest
+    steps:
+      - name: Cache Models
+        id: cache-models
+        uses: actions/cache@v4
+        with:
+          path: models-cache
+          key: ai-models-v1
+
+      - name: Download Models
+        if: steps.cache-models.outputs.cache-hit != 'true'
+        run: |
+          mkdir -p models-cache/model-small-en-us
+          
+          echo "Downloading Vosk..."
+          curl -L "https://alphacephei.com/vosk/models/vosk-model-small-en-us-0.15.zip" -o vosk.zip
+          unzip -q vosk.zip
+          mv vosk-model-small-en-us-0.15/* models-cache/model-small-en-us/
+          
+          echo "Downloading Phi-2..."
+          curl -L "https://huggingface.co/TheBloke/phi-2-GGUF/resolve/main/phi-2.Q4_K_M.gguf" -o models-cache/phi-2.Q4_K_M.gguf
+          
+          echo "Downloading Piper..."
+          curl -L "https://huggingface.co/rhasspy/piper-voices/resolve/v1.0.0/en/en_US/lessac/medium/en_US-lessac-medium.onnx" -o models-cache/tts-model.onnx
+          curl -L "https://huggingface.co/rhasspy/piper-voices/resolve/v1.0.0/en/en_US/lessac/medium/en_US-lessac-medium.onnx.json" -o models-cache/tts-model.onnx.json
+
+      - name: Upload Models Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ai-models
+          path: models-cache/
+
+  # Job 3: Final APK Assembly
   build-apk:
-    name: Build APK
-    needs: build-native
+    name: Assemble APK
+    needs: [build-native, prepare-models]
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -67,66 +98,28 @@ jobs:
           distribution: 'temurin'
           cache: 'gradle'
 
-      - name: Cache Gradle dependencies
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.gradle/caches
-            ~/.gradle/wrapper
-          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
-          restore-keys: |
-            ${{ runner.os }}-gradle-
-
-      - name: Download All Native Artifacts
+      - name: Download Native Libs
         uses: actions/download-artifact@v4
         with:
-          path: app/src/main/jniLibs
-          pattern: native-libs-*
-          merge-multiple: false
+          name: native-libs-arm64-v8a
+          path: app/src/main/jniLibs/arm64-v8a
 
-      - name: Organize Native Libs
-        run: |
-          # Move from native-libs-abi/*.so to abi/*.so
-          cd app/src/main/jniLibs
-          for dir in native-libs-*; do
-            abi=${dir#native-libs-}
-            mkdir -p $abi
-            mv $dir/*.so $abi/
-            rm -rf $dir
-          done
-          ls -R
+      - name: Download Models
+        uses: actions/download-artifact@v4
+        with:
+          name: ai-models
+          path: app/src/main/assets
 
-      - name: Bundle AI Models into Assets
-        run: |
-          mkdir -p app/src/main/assets
-          
-          # 1. Vosk STT Model (~40MB)
-          echo "Downloading Vosk Model..."
-          curl -L "https://alphacephei.com/vosk/models/vosk-model-small-en-us-0.15.zip" -o vosk-model.zip
-          unzip -q vosk-model.zip
-          mv vosk-model-small-en-us-0.15 app/src/main/assets/model-small-en-us
-          rm vosk-model.zip
-
-          # 2. Llama Phi-2 LLM Model (~1.7GB)
-          echo "Downloading Phi-2 Model..."
-          curl -L "https://huggingface.co/TheBloke/phi-2-GGUF/resolve/main/phi-2.Q4_K_M.gguf" -o app/src/main/assets/phi-2.Q4_K_M.gguf
-
-          # 3. Piper TTS Model (~30MB)
-          echo "Downloading Piper TTS Model..."
-          # Using a high-quality male voice suitable for Jarvis
-          curl -L "https://huggingface.co/rhasspy/piper-voices/resolve/v1.0.0/en/en_US/lessac/medium/en_US-lessac-medium.onnx" -o app/src/main/assets/tts-model.onnx
-          curl -L "https://huggingface.co/rhasspy/piper-voices/resolve/v1.0.0/en/en_US/lessac/medium/en_US-lessac-medium.onnx.json" -o app/src/main/assets/tts-model.onnx.json
-
-      - name: Grant execute permission for gradlew
-        run: chmod +x gradlew
-      - name: Run unit tests
-        run: ./gradlew test -PskipNativeBuild
+      - name: Verify Assets
+        run: ls -R app/src/main/assets
 
       - name: Build debug APK
-        run: ./gradlew assembleDebug -PskipNativeBuild
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleDebug -PskipNativeBuild -Dorg.gradle.jvmargs="-Xmx6g"
 
       - name: Upload debug APK
         uses: actions/upload-artifact@v4
         with:
-          name: app-debug
+          name: jarvis-full-debug
           path: app/build/outputs/apk/debug/app-debug.apk

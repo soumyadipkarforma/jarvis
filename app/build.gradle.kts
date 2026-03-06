@@ -57,6 +57,10 @@ android {
         viewBinding = true
     }
 
+    androidResources {
+        noCompress += listOf("gguf", "onnx", "onnx.json")
+    }
+
     testOptions {
         unitTests.isReturnDefaultValues = true
     }
