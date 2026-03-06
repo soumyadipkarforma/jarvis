@@ -15,7 +15,7 @@ Java_com_jarvis_assistant_llm_LlamaLLMEngine_nativeLoadModel(JNIEnv *env, jobjec
     const char *path = env->GetStringUTFChars(model_path, nullptr);
     
     llama_model_params model_params = llama_model_default_params();
-    llama_model *model = llama_load_model_from_file(path, model_params);
+    llama_model *model = llama_model_load_from_file(path, model_params);
     
     env->ReleaseStringUTFChars(model_path, path);
     
@@ -36,7 +36,7 @@ Java_com_jarvis_assistant_llm_LlamaLLMEngine_nativeCreateContext(JNIEnv *env, jo
     ctx_params.n_ctx = context_size;
     ctx_params.n_batch = context_size;
     
-    llama_context *ctx = llama_new_context_with_model(model, ctx_params);
+    llama_context *ctx = llama_init_from_model(model, ctx_params);
     if (!ctx) {
         LOGE("Failed to create context");
         return 0;
@@ -52,28 +52,22 @@ Java_com_jarvis_assistant_llm_LlamaLLMEngine_nativeGenerate(JNIEnv *env, jobject
     
     const char *prompt_str = env->GetStringUTFChars(prompt, nullptr);
     
-    // Minimal generation implementation
     const llama_model *model = llama_get_model(ctx);
+    const struct llama_vocab *vocab = llama_model_get_vocab(model);
     
     std::vector<llama_token> tokens;
     tokens.resize(llama_n_ctx(ctx));
     
-    int n_tokens = llama_tokenize(model, prompt_str, strlen(prompt_str), tokens.data(), tokens.size(), true, true);
+    int n_tokens = llama_tokenize(vocab, prompt_str, strlen(prompt_str), tokens.data(), tokens.size(), true, true);
     if (n_tokens < 0) {
         env->ReleaseStringUTFChars(prompt, prompt_str);
         return env->NewStringUTF("Error: Tokenization failed");
     }
     
-    llama_batch batch = llama_batch_init(512, 0, 1);
-    
-    // Very simplified generation loop
-    std::string result = "";
-    // ... (This would be a full generation loop in a real app)
-    // For now, returning a placeholder to confirm JNI works
-    result = "Jarvis is online and JNI is functional. (Full generation loop implementation needed)";
+    // Very simplified generation loop placeholder
+    std::string result = "Jarvis is online and JNI is functional. (Full generation loop implementation needed)";
     
     env->ReleaseStringUTFChars(prompt, prompt_str);
-    llama_batch_free(batch);
     
     return env->NewStringUTF(result.c_str());
 }
@@ -87,7 +81,7 @@ Java_com_jarvis_assistant_llm_LlamaLLMEngine_nativeFreeContext(JNIEnv *env, jobj
 JNIEXPORT void JNICALL
 Java_com_jarvis_assistant_llm_LlamaLLMEngine_nativeFreeModel(JNIEnv *env, jobject thiz, jlong model_ptr) {
     llama_model *model = reinterpret_cast<llama_model *>(model_ptr);
-    if (model) llama_free_model(model);
+    if (model) llama_model_free(model);
 }
 
 }
